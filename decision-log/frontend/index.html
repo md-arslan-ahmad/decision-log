@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Decision Log</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,700;1,400&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+    :root {
+      --ink:        #1a1a18;
+      --paper:      #f5f2eb;
+      --cream:      #ede9df;
+      --rule:       #c8c2b4;
+      --muted:      #7a7468;
+      --accent:     #c0392b;
+      --accepted:   #2d6a4f;
+      --rejected:   #6b2737;
+      --superseded: #4a5568;
+      --proposed:   #744210;
+      --sidebar:    220px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 300;
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: var(--sidebar);
+      min-height: 100vh;
+      background: var(--ink);
+      color: var(--paper);
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 1.5rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-style: italic;
+      letter-spacing: 0.02em;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+      padding-bottom: 1.5rem;
+      margin-bottom: 1.5rem;
+      line-height: 1.3;
+    }
+
+    .sidebar-logo span {
+      display: block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-style: normal;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      opacity: 0.5;
+      margin-bottom: 0.3rem;
+    }
+
+    .sidebar-nav { display: flex; flex-direction: column; gap: 0.25rem; }
+
+    .nav-item {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.5rem 0.75rem;
+      border-radius: 2px;
+      cursor: pointer;
+      color: rgba(245,242,235,0.6);
+      transition: all 0.15s;
+      border: 1px solid transparent;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-item:hover { color: var(--paper); background: rgba(255,255,255,0.05); }
+    .nav-item.active { color: var(--paper); background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.1); }
+    .nav-count { font-size: 0.6rem; opacity: 0.5; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.55rem;
+      color: rgba(245,242,235,0.3);
+      letter-spacing: 0.05em;
+      line-height: 1.8;
+    }
+
+    .main { flex: 1; padding: 2.5rem 3rem; max-width: 860px; min-width: 0; }
+
+    .page-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--ink);
+      gap: 1rem;
+    }
+
+    .page-title { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
+    .page-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.05em; }
+
+    .btn {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:hover { background: var(--ink); color: var(--paper); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--ink); color: var(--paper); }
+    .btn-primary:hover { background: #333; }
+    .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.6rem; }
+    .btn-danger { border-color: var(--accent); color: var(--accent); }
+    .btn-danger:hover { background: var(--accent); color: white; }
+
+    .decisions-list { display: flex; flex-direction: column; gap: 1px; }
+
+    .decision-card {
+      background: white;
+      border: 1px solid var(--rule);
+      padding: 1.25rem 1.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+
+    .decision-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+    }
+
+    .decision-card[data-status="proposed"]::before   { background: var(--proposed); }
+    .decision-card[data-status="accepted"]::before   { background: var(--accepted); }
+    .decision-card[data-status="rejected"]::before   { background: var(--rejected); }
+    .decision-card[data-status="superseded"]::before { background: var(--superseded); }
+    .decision-card:hover { border-color: var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
+    .card-title { font-family: 'Playfair Display', serif; font-size: 1.05rem; font-weight: 700; line-height: 1.3; }
+
+    .status-badge {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.55rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.5rem;
+      border-radius: 1px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .badge-proposed   { background: #fef3c7; color: var(--proposed); }
+    .badge-accepted   { background: #d1fae5; color: var(--accepted); }
+    .badge-rejected   { background: #fee2e2; color: var(--rejected); }
+    .badge-superseded { background: #e2e8f0; color: var(--superseded); }
+
+    .card-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--muted); letter-spacing: 0.03em; }
+
+    .card-preview {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+      line-height: 1.5;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .detail-panel {
+      position: fixed;
+      right: 0; top: 0; bottom: 0;
+      width: 520px;
+      background: var(--cream);
+      border-left: 2px solid var(--ink);
+      overflow-y: auto;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .detail-backdrop { position: fixed; inset: 0; z-index: 99; }
+
+    .detail-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--rule);
+      background: var(--ink);
+      color: var(--paper);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .detail-header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .detail-id { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; opacity: 0.5; }
+    .detail-title { font-family: 'Playfair Display', serif; font-size: 1.35rem; line-height: 1.3; }
+    .detail-body { padding: 1.5rem; flex: 1; }
+
+    .field-block { margin-bottom: 1.5rem; }
+    .field-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
+    .field-text { font-size: 0.875rem; line-height: 1.65; color: var(--ink); white-space: pre-wrap; }
+
+    .detail-actions {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--rule);
+      background: white;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .transition-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--muted); letter-spacing: 0.05em; margin-right: 0.25rem; }
+
+    .form-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(26,26,24,0.6);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .form-panel { background: var(--paper); border: 2px solid var(--ink); width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+    .form-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; }
+    .form-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; }
+    .form-body { padding: 1.5rem; }
+    .form-group { margin-bottom: 1.25rem; }
+
+    .form-label {
+      display: block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .form-label .req { color: var(--accent); margin-left: 0.2rem; }
+
+    .form-input, .form-textarea {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--rule);
+      background: white;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 0.875rem;
+      color: var(--ink);
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-input:focus, .form-textarea:focus { border-color: var(--ink); }
+    .form-input.has-error, .form-textarea.has-error { border-color: var(--accent); }
+    .form-textarea { min-height: 80px; }
+    .field-error { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--accent); margin-top: 0.25rem; }
+
+    .form-actions {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      background: var(--cream);
+    }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+    .empty-state-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
+    .empty-state-title { font-family: 'Playfair Display', serif; font-size: 1.25rem; font-style: italic; margin-bottom: 0.5rem; color: var(--ink); }
+    .empty-state-text { font-size: 0.8rem; line-height: 1.6; }
+
+    .loading { display: flex; align-items: center; justify-content: center; padding: 3rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted); letter-spacing: 0.1em; }
+
+    .error-banner { background: #fee2e2; border: 1px solid var(--accent); padding: 0.75rem 1rem; margin-bottom: 1rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--rejected); display: flex; justify-content: space-between; align-items: center; }
+
+    .close-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: inherit; opacity: 0.6; padding: 0.25rem; line-height: 1; }
+    .close-btn:hover { opacity: 1; }
+    .divider { border: none; border-top: 1px solid var(--rule); margin: 1rem 0; }
+
+    .header-right { display: flex; gap: 0.75rem; align-items: center; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    // ── API service — all HTTP calls go through this module ─────────────────────
+    const BASE = 'http://localhost:5001';
+
+    const api = {
+      async request(method, path, body) {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body !== undefined) opts.body = JSON.stringify(body);
+        const resp = await fetch(BASE + path, opts);
+        const data = resp.status === 204 ? null : await resp.json();
+        if (!resp.ok) {
+          const err = new Error(data?.error || 'Request failed');
+          err.code = data?.code;
+          err.details = data?.details;
+          throw err;
+        }
+        return data;
+      },
+      list:       ()           => api.request('GET',    '/api/decisions/'),
+      create:     (body)       => api.request('POST',   '/api/decisions/', body),
+      update:     (id, body)   => api.request('PATCH',  `/api/decisions/${id}`, body),
+      transition: (id, status) => api.request('POST',   `/api/decisions/${id}/transition`, { status }),
+      delete:     (id)         => api.request('DELETE', `/api/decisions/${id}`),
+    };
+
+    // ── Constants ──────────────────────────────────────────────────────────────
+    const STATUS_LABELS = {
+      proposed: 'Proposed', accepted: 'Accepted',
+      rejected: 'Rejected', superseded: 'Superseded',
+    };
+
+    const ALLOWED_TRANSITIONS = {
+      proposed: ['accepted', 'rejected'],
+      accepted: ['superseded'],
+      rejected: [],
+      superseded: [],
+    };
+
+    const formatDate = (iso) => new Date(iso).toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric'
+    });
+
+    // ── StatusBadge ─────────────────────────────────────────────────────────────
+    function StatusBadge({ status }) {
+      return <span className={`status-badge badge-${status}`}>{STATUS_LABELS[status]}</span>;
+    }
+
+    // ── ErrorBanner ─────────────────────────────────────────────────────────────
+    function ErrorBanner({ message, onDismiss }) {
+      return (
+        <div className="error-banner">
+          <span>{message}</span>
+          <button className="close-btn" onClick={onDismiss}>×</button>
+        </div>
+      );
+    }
+
+    // ── DecisionForm ────────────────────────────────────────────────────────────
+    function DecisionForm({ initial, onSave, onClose }) {
+      const [fields, setFields] = useState({
+        title:        initial?.title        || '',
+        context:      initial?.context      || '',
+        decision:     initial?.decision     || '',
+        consequences: initial?.consequences || '',
+      });
+      const [fieldErrors, setFieldErrors] = useState({});
+      const [submitting, setSubmitting]   = useState(false);
+      const [error, setError]             = useState(null);
+      const isEdit = !!initial;
+
+      const set = (key) => (ev) => setFields(f => ({ ...f, [key]: ev.target.value }));
+
+      async function handleSubmit() {
+        setSubmitting(true);
+        setError(null);
+        setFieldErrors({});
+        try {
+          const body = {
+            title: fields.title,
+            context: fields.context,
+            decision: fields.decision,
+          };
+          if (fields.consequences.trim()) body.consequences = fields.consequences;
+          const result = isEdit
+            ? await api.update(initial.id, body)
+            : await api.create(body);
+          onSave(result.data);
+        } catch (err) {
+          if (err.details) {
+            const fe = {};
+            err.details.forEach(d => { fe[d.field] = d.message; });
+            setFieldErrors(fe);
+          }
+          setError(err.message);
+        } finally {
+          setSubmitting(false);
+        }
+      }
+
+      function Field({ name, label, multiline, required }) {
+        const Tag = multiline ? 'textarea' : 'input';
+        return (
+          <div className="form-group">
+            <label className="form-label">
+              {label}{required && <span className="req">*</span>}
+            </label>
+            <Tag
+              className={`form-${multiline ? 'textarea' : 'input'}${fieldErrors[name] ? ' has-error' : ''}`}
+              value={fields[name]}
+              onChange={set(name)}
+              rows={multiline ? 3 : undefined}
+            />
+            {fieldErrors[name] && <div className="field-error">{fieldErrors[name]}</div>}
+          </div>
+        );
+      }
+
+      return (
+        <div className="form-overlay" onClick={(ev) => ev.target === ev.currentTarget && onClose()}>
+          <div className="form-panel">
+            <div className="form-header">
+              <div className="form-title">{isEdit ? 'Edit Decision' : 'New Decision'}</div>
+              <button className="close-btn" onClick={onClose}>×</button>
+            </div>
+            <div className="form-body">
+              {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+              <Field name="title"        label="Title"                                       required />
+              <Field name="context"      label="Context — why was this decision needed?"     required multiline />
+              <Field name="decision"     label="Decision — what was decided?"                required multiline />
+              <Field name="consequences" label="Consequences — what are the trade-offs?"             multiline />
+            </div>
+            <div className="form-actions">
+              <button className="btn" onClick={onClose}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Decision'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── DetailPanel ─────────────────────────────────────────────────────────────
+    function DetailPanel({ decision, onClose, onUpdated, onDeleted }) {
+      const [transitioning, setTransitioning] = useState(false);
+      const [editing, setEditing]             = useState(false);
+      const [error, setError]                 = useState(null);
+      const transitions = ALLOWED_TRANSITIONS[decision.status] || [];
+
+      async function doTransition(status) {
+        setTransitioning(true);
+        setError(null);
+        try {
+          const result = await api.transition(decision.id, status);
+          onUpdated(result.data);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setTransitioning(false);
+        }
+      }
+
+      async function doDelete() {
+        if (!confirm(`Delete "${decision.title}"? This cannot be undone.`)) return;
+        try {
+          await api.delete(decision.id);
+          onDeleted(decision.id);
+        } catch (err) {
+          setError(err.message);
+        }
+      }
+
+      return (
+        <>
+          <div className="detail-backdrop" onClick={onClose} />
+          <div className="detail-panel">
+            <div className="detail-header">
+              <div className="detail-header-top">
+                <span className="detail-id">ADR-{String(decision.id).padStart(4, '0')}</span>
+                <StatusBadge status={decision.status} />
+                <button className="close-btn" style={{ color: 'var(--paper)' }} onClick={onClose}>×</button>
+              </div>
+              <div className="detail-title">{decision.title}</div>
+            </div>
+
+            <div className="detail-body">
+              {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+              <div className="field-block">
+                <div className="field-label">Context</div>
+                <div className="field-text">{decision.context}</div>
+              </div>
+              <hr className="divider" />
+              <div className="field-block">
+                <div className="field-label">Decision</div>
+                <div className="field-text">{decision.decision}</div>
+              </div>
+              {decision.consequences && <>
+                <hr className="divider" />
+                <div className="field-block">
+                  <div className="field-label">Consequences</div>
+                  <div className="field-text">{decision.consequences}</div>
+                </div>
+              </>}
+              <hr className="divider" />
+              <div className="card-meta">
+                Created {formatDate(decision.created_at)} · Updated {formatDate(decision.updated_at)}
+              </div>
+            </div>
+
+            <div className="detail-actions">
+              {transitions.length > 0 && <span className="transition-label">Move to:</span>}
+              {transitions.map(s => (
+                <button
+                  key={s}
+                  className={`btn btn-sm badge-${s}`}
+                  style={{ border: '1px solid currentColor', fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 }}
+                  onClick={() => doTransition(s)}
+                  disabled={transitioning}
+                >
+                  {STATUS_LABELS[s]}
+                </button>
+              ))}
+              <span style={{ flex: 1 }} />
+              <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit</button>
+              <button className="btn btn-sm btn-danger" onClick={doDelete}>Delete</button>
+            </div>
+
+            {editing && (
+              <DecisionForm
+                initial={decision}
+                onSave={(d) => { onUpdated(d); setEditing(false); }}
+                onClose={() => setEditing(false)}
+              />
+            )}
+          </div>
+        </>
+      );
+    }
+
+    // ── Sidebar ─────────────────────────────────────────────────────────────────
+    function Sidebar({ decisions, filter, onFilter }) {
+      const counts = {
+        all:        decisions.length,
+        proposed:   decisions.filter(d => d.status === 'proposed').length,
+        accepted:   decisions.filter(d => d.status === 'accepted').length,
+        rejected:   decisions.filter(d => d.status === 'rejected').length,
+        superseded: decisions.filter(d => d.status === 'superseded').length,
+      };
+      const items = [
+        { key: 'all',        label: 'All Decisions' },
+        { key: 'proposed',   label: 'Proposed' },
+        { key: 'accepted',   label: 'Accepted' },
+        { key: 'rejected',   label: 'Rejected' },
+        { key: 'superseded', label: 'Superseded' },
+      ];
+      return (
+        <aside className="sidebar">
+          <div className="sidebar-logo">
+            <span>Architecture</span>Decision Log
+          </div>
+          <nav className="sidebar-nav">
+            {items.map(item => (
+              <div
+                key={item.key}
+                className={`nav-item${filter === item.key ? ' active' : ''}`}
+                onClick={() => onFilter(item.key)}
+              >
+                <span>{item.label}</span>
+                <span className="nav-count">{counts[item.key]}</span>
+              </div>
+            ))}
+          </nav>
+          <div className="sidebar-footer">
+            decision-log v1.0<br />
+            Flask · React · SQLite
+          </div>
+        </aside>
+      );
+    }
+
+    // ── App ──────────────────────────────────────────────────────────────────────
+    function App() {
+      const [decisions, setDecisions] = useState([]);
+      const [loading, setLoading]     = useState(true);
+      const [error, setError]         = useState(null);
+      const [selected, setSelected]   = useState(null);
+      const [creating, setCreating]   = useState(false);
+      const [filter, setFilter]       = useState('all');
+
+      const loadDecisions = useCallback(async () => {
+        try {
+          const result = await api.list();
+          setDecisions(result.data);
+          setError(null);
+        } catch (err) {
+          setError('Failed to connect to backend: ' + err.message);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      useEffect(() => { loadDecisions(); }, [loadDecisions]);
+
+      function handleCreated(d) {
+        setDecisions(prev => [d, ...prev]);
+        setCreating(false);
+        setSelected(d);
+      }
+
+      function handleUpdated(d) {
+        setDecisions(prev => prev.map(x => x.id === d.id ? d : x));
+        setSelected(d);
+      }
+
+      function handleDeleted(id) {
+        setDecisions(prev => prev.filter(x => x.id !== id));
+        setSelected(null);
+      }
+
+      const visible = filter === 'all'
+        ? decisions
+        : decisions.filter(d => d.status === filter);
+
+      return (
+        <div style={{ display: 'flex', minHeight: '100vh' }}>
+          <Sidebar decisions={decisions} filter={filter} onFilter={setFilter} />
+
+          <main className="main">
+            <div className="page-header">
+              <h1 className="page-title">
+                {filter === 'all' ? 'All Decisions' : STATUS_LABELS[filter]}
+              </h1>
+              <div className="header-right">
+                <span className="page-meta">
+                  {visible.length} record{visible.length !== 1 ? 's' : ''}
+                </span>
+                <button className="btn btn-primary" onClick={() => setCreating(true)}>
+                  + New Decision
+                </button>
+              </div>
+            </div>
+
+            {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+            {loading ? (
+              <div className="loading">Loading records…</div>
+            ) : visible.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">📋</div>
+                <div className="empty-state-title">No decisions here yet</div>
+                <div className="empty-state-text">
+                  {filter === 'all'
+                    ? 'Create your first architecture decision record above.'
+                    : `No ${filter} decisions. Try a different filter.`}
+                </div>
+              </div>
+            ) : (
+              <div className="decisions-list">
+                {visible.map(d => (
+                  <div
+                    key={d.id}
+                    className="decision-card"
+                    data-status={d.status}
+                    onClick={() => setSelected(d)}
+                  >
+                    <div className="card-header">
+                      <div className="card-title">{d.title}</div>
+                      <StatusBadge status={d.status} />
+                    </div>
+                    <div className="card-meta">
+                      ADR-{String(d.id).padStart(4, '0')} · {formatDate(d.created_at)}
+                    </div>
+                    <div className="card-preview">{d.context}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+
+          {selected && (
+            <DetailPanel
+              decision={selected}
+              onClose={() => setSelected(null)}
+              onUpdated={handleUpdated}
+              onDeleted={handleDeleted}
+            />
+          )}
+
+          {creating && (
+            <DecisionForm
+              onSave={handleCreated}
+              onClose={() => setCreating(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
